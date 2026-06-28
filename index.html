@@ -1,0 +1,1975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BitFlowLM - CS Learning & Visualization Workspace</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        },
+                        darkBg: '#080c14',
+                        darkCard: '#0f1626',
+                        darkBorder: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Marked.js for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- PDF.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    </script>
+
+    <style>
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #080c14;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6366f1;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: .4; transform: scale(1.15); }
+        }
+        .animate-status-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        iframe {
+            border: none;
+        }
+        /* Custom styles for rendered markdown inside chat bubble */
+        .prose p {
+            margin-bottom: 0.5rem;
+        }
+        .prose ul, .prose ol {
+            margin-left: 1.25rem;
+            margin-bottom: 0.5rem;
+            list-style-type: decimal;
+        }
+        .prose ul {
+            list-style-type: disc;
+        }
+        .prose code {
+            background-color: #1e293b;
+            padding: 0.1rem 0.3rem;
+            border-radius: 0.25rem;
+            font-family: monospace;
+            font-size: 0.85em;
+        }
+        .prose pre {
+            background-color: #0d1321;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 0.75rem 0;
+            border: 1px solid #1e293b;
+            max-width: 100%;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .prose pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+    </style>
+</head>
+<body class="bg-darkBg text-slate-100 min-h-screen flex flex-col font-sans overflow-hidden">
+
+    <!-- TOP HEADER BAR -->
+    <header class="bg-darkCard border-b border-darkBorder px-6 py-4 flex items-center justify-between z-10 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="bg-brand-600 p-2.5 rounded-xl shadow-lg shadow-brand-600/20 text-white flex items-center justify-center">
+                <i data-lucide="cpu" class="w-6 h-6 text-indigo-100"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-brand-500 bg-clip-text text-transparent">
+                    BitFlowLM
+                </h1>
+                <p class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">NotebookLM for CS Visualizations</p>
+            </div>
+        </div>
+
+        <!-- API Connection Controls -->
+        <div class="flex items-center gap-3 bg-[#090e1a] p-1.5 px-3 rounded-xl border border-darkBorder">
+            <div class="relative flex items-center gap-2">
+                <i data-lucide="key" class="w-4 h-4 text-slate-400"></i>
+                <input 
+                    type="password" 
+                    id="apiKeyInput" 
+                    placeholder="Enter Gemini API Key" 
+                    class="bg-transparent text-sm text-slate-200 placeholder-slate-500 border-none outline-none focus:ring-0 w-44 sm:w-60 transition-all"
+                />
+                <button 
+                    id="toggleKeyVis" 
+                    class="text-slate-500 hover:text-slate-300 transition-colors"
+                    title="Toggle Visibility"
+                >
+                    <i data-lucide="eye" class="w-4 h-4" id="visIcon"></i>
+                </button>
+            </div>
+            
+            <div class="h-5 w-[1px] bg-darkBorder"></div>
+
+            <!-- Connection Indicator Button with Tooltip -->
+            <div class="relative group">
+                <button 
+                    id="connectionIndicator" 
+                    class="flex items-center gap-2 bg-[#121929] hover:bg-darkBorder/80 px-3 py-1.5 rounded-lg border border-darkBorder/40 transition-all"
+                >
+                    <span class="relative flex h-2.5 w-2.5">
+                        <span id="indicatorPulse" class="animate-status-pulse absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span id="indicatorDot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                    </span>
+                    <span id="indicatorText" class="text-xs font-semibold text-red-400">Disconnected</span>
+                </button>
+                <div id="errorTooltip" class="absolute right-0 top-full mt-2 w-64 bg-slate-900 border border-red-500/30 p-2.5 rounded-xl shadow-2xl hidden z-50 text-[11px] text-slate-300 pointer-events-none">
+                    <p class="font-bold text-red-400 mb-1 flex items-center gap-1">
+                        <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Verification Error
+                    </p>
+                    <span id="tooltipErrorText">Provide a valid Gemini API key to communicate with the simulation assistant.</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- WORKSPACE BODY (Protected bounds, prevents parent scroll breakages) -->
+    <div class="flex-1 flex overflow-hidden w-full relative">
+
+        <!-- COLUMN 1: LEFT SIDEBAR (Document & Topic Manager) -->
+        <aside class="w-80 bg-darkCard/95 border-r border-darkBorder flex flex-col shrink-0 h-full max-h-full overflow-hidden">
+            
+            <!-- PDF Upload Box -->
+            <div class="p-4 border-b border-darkBorder shrink-0">
+                <div 
+                    id="dropzone" 
+                    class="border-2 border-dashed border-darkBorder hover:border-brand-500/50 bg-[#070b14] hover:bg-[#0c1221] rounded-xl p-5 text-center cursor-pointer transition-all group"
+                >
+                    <input type="file" id="fileInput" accept="application/pdf" multiple class="hidden" />
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="bg-brand-600/10 p-3 rounded-lg text-brand-500 group-hover:scale-110 transition-transform">
+                            <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                        </div>
+                        <p class="text-xs font-medium text-slate-300">Drag & drop files or <span class="text-brand-500">Browse</span></p>
+                        <p class="text-[10px] text-slate-500">Supports multiple PDFs</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Context Filter Info -->
+            <div class="p-3 bg-brand-900/10 border-b border-darkBorder px-4 py-2.5 flex items-center justify-between shrink-0">
+                <span class="text-[11px] font-semibold tracking-wider uppercase text-brand-400">Context Source</span>
+                <button id="clearAllDocs" class="text-[10px] text-red-400 hover:text-red-300 font-medium transition-all">
+                    Remove All
+                </button>
+            </div>
+
+            <!-- Categorized Documents Section -->
+            <div class="flex-1 p-4 space-y-5 overflow-y-auto">
+                
+                <div>
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center justify-between">
+                        <span>Domains</span>
+                        <span class="text-[10px] bg-darkBorder px-1.5 py-0.5 rounded text-slate-400 font-normal">Auto-Categorized</span>
+                    </h3>
+                    
+                    <!-- Domain Accordions -->
+                    <div class="space-y-3">
+                        <!-- 1. DSA -->
+                        <div class="bg-darkBg/60 rounded-xl border border-darkBorder/60 overflow-hidden">
+                            <div class="p-3 bg-darkBg/80 flex items-center justify-between border-b border-darkBorder/40">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="binary" class="w-4 h-4 text-emerald-400"></i>
+                                    <span class="text-xs font-semibold text-slate-200">Algorithms (DSA)</span>
+                                </div>
+                                <span class="doc-count text-[10px] bg-darkCard px-1.5 py-0.5 rounded text-emerald-400" id="count-dsa">0</span>
+                            </div>
+                            <div class="p-2 space-y-1" id="list-dsa">
+                                <p class="text-[11px] text-slate-500 text-center py-2 italic">No context files loaded</p>
+                            </div>
+                        </div>
+
+                        <!-- 2. Digital Logic -->
+                        <div class="bg-darkBg/60 rounded-xl border border-darkBorder/60 overflow-hidden">
+                            <div class="p-3 bg-darkBg/80 flex items-center justify-between border-b border-darkBorder/40">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="layers" class="w-4 h-4 text-cyan-400"></i>
+                                    <span class="text-xs font-semibold text-slate-200">Digital Logic</span>
+                                </div>
+                                <span class="doc-count text-[10px] bg-darkCard px-1.5 py-0.5 rounded text-cyan-400" id="count-logic">0</span>
+                            </div>
+                            <div class="p-2 space-y-1" id="list-logic">
+                                <p class="text-[11px] text-slate-500 text-center py-2 italic">No context files loaded</p>
+                            </div>
+                        </div>
+
+                        <!-- 3. Operating Systems -->
+                        <div class="bg-darkBg/60 rounded-xl border border-darkBorder/60 overflow-hidden">
+                            <div class="p-3 bg-darkBg/80 flex items-center justify-between border-b border-darkBorder/40">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="terminal" class="w-4 h-4 text-purple-400"></i>
+                                    <span class="text-xs font-semibold text-slate-200">Operating Systems</span>
+                                </div>
+                                <span class="doc-count text-[10px] bg-darkCard px-1.5 py-0.5 rounded text-purple-400" id="count-os">0</span>
+                            </div>
+                            <div class="p-2 space-y-1" id="list-os">
+                                <p class="text-[11px] text-slate-500 text-center py-2 italic">No context files loaded</p>
+                            </div>
+                        </div>
+
+                        <!-- 4. Computer Networks -->
+                        <div class="bg-darkBg/60 rounded-xl border border-darkBorder/60 overflow-hidden">
+                            <div class="p-3 bg-darkBg/80 flex items-center justify-between border-b border-darkBorder/40">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="network" class="w-4 h-4 text-amber-400"></i>
+                                    <span class="text-xs font-semibold text-slate-200">Computer Networks</span>
+                                </div>
+                                <span class="doc-count text-[10px] bg-darkCard px-1.5 py-0.5 rounded text-amber-400" id="count-networks">0</span>
+                            </div>
+                            <div class="p-2 space-y-1" id="list-networks">
+                                <p class="text-[11px] text-slate-500 text-center py-2 italic">No context files loaded</p>
+                            </div>
+                        </div>
+
+                        <!-- 5. General Uploads -->
+                        <div class="bg-darkBg/60 rounded-xl border border-darkBorder/60 overflow-hidden">
+                            <div class="p-3 bg-darkBg/80 flex items-center justify-between border-b border-darkBorder/40">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="folder" class="w-4 h-4 text-slate-400"></i>
+                                    <span class="text-xs font-semibold text-slate-200">General Documents</span>
+                                </div>
+                                <span class="doc-count text-[10px] bg-darkCard px-1.5 py-0.5 rounded text-slate-400" id="count-general">0</span>
+                            </div>
+                            <div class="p-2 space-y-1" id="list-general">
+                                <p class="text-[11px] text-slate-500 text-center py-2 italic">No context files loaded</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer info inside Left Sidebar -->
+            <div class="p-4 bg-[#090e1a] border-t border-darkBorder space-y-2 shrink-0">
+                <p class="text-[10px] text-slate-400 flex items-center gap-1">
+                    <i data-lucide="info" class="w-3.5 h-3.5 text-brand-500"></i> 
+                    Checkboxes control documents sent to LLM.
+                </p>
+                <div class="p-2 rounded bg-darkBg text-[10px] text-brand-400 border border-brand-900/30">
+                    <strong>Quick Tip:</strong> Click on document names directly to display them in the center pane.
+                </div>
+            </div>
+        </aside>
+
+        <!-- COLUMN 2: CENTER PANEL (Main Document & Visualization Viewer) -->
+        <main class="flex-1 bg-darkBg flex flex-col overflow-hidden relative h-full">
+            
+            <!-- Tab Controls Header -->
+            <div class="bg-darkCard/80 border-b border-darkBorder px-6 py-2.5 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-1.5 bg-darkBg p-1 rounded-xl border border-darkBorder">
+                    <button 
+                        id="tabDocBtn" 
+                        class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 bg-brand-600 text-white"
+                        onclick="switchCenterTab('doc')"
+                    >
+                        <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                        Document Viewer
+                    </button>
+                    <button 
+                        id="tabCanvasBtn" 
+                        class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 text-slate-400 hover:text-slate-200"
+                        onclick="switchCenterTab('canvas')"
+                    >
+                        <i data-lucide="play-circle" class="w-3.5 h-3.5"></i>
+                        Visualization Canvas
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <span id="activeDocBadge" class="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-full max-w-[200px] truncate block font-medium border border-darkBorder">
+                        No Active Document
+                    </span>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="flex-1 relative overflow-hidden">
+                
+                <!-- Tab View A: Document Viewer -->
+                <div id="tabDocContent" class="absolute inset-0 flex flex-col justify-center items-center bg-[#060910] p-6 transition-opacity duration-200">
+                    <div id="viewerFallback" class="text-center max-w-sm flex flex-col items-center gap-4 text-slate-400">
+                        <div class="bg-[#101726] p-6 rounded-3xl border border-darkBorder text-brand-500 shadow-2xl">
+                            <i data-lucide="file-text" class="w-16 h-16 animate-pulse"></i>
+                        </div>
+                        <h2 class="text-lg font-bold text-slate-200">Document Reader Portal</h2>
+                        <p class="text-xs leading-relaxed text-slate-400">
+                            Upload your course material on DSA, Digital Logic, OS or Networks. Click on any document in the list to visualize and inspect its pages.
+                        </p>
+                    </div>
+                    
+                    <!-- PDF View Box -->
+                    <div id="pdfViewerFrame" class="hidden w-full h-full p-4 relative flex flex-col">
+                        <div class="flex items-center justify-between p-2 bg-darkCard border border-darkBorder rounded-t-xl shrink-0">
+                            <span id="pdfNameTitle" class="text-xs font-semibold text-slate-300 truncate max-w-xs">PDF Reader</span>
+                            <div class="flex items-center gap-2">
+                                <button id="prevPageBtn" class="bg-darkBg hover:bg-slate-800 p-1.5 rounded border border-darkBorder text-slate-300">
+                                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                                </button>
+                                <span class="text-xs text-slate-400 font-mono">Page <span id="pdfPageNum">1</span> / <span id="pdfTotalPages">1</span></span>
+                                <button id="nextPageBtn" class="bg-darkBg hover:bg-slate-800 p-1.5 rounded border border-darkBorder text-slate-300">
+                                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex-1 bg-darkBg border-x border-b border-darkBorder rounded-b-xl overflow-auto flex justify-center p-4">
+                            <canvas id="pdfRendererCanvas" class="shadow-2xl max-w-full h-auto bg-white rounded"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab View B: Visualization Canvas -->
+                <div id="tabCanvasContent" class="absolute inset-0 flex flex-col bg-[#060910] p-6 hidden opacity-0 transition-opacity duration-200">
+                    <div class="bg-darkCard border border-darkBorder p-4 rounded-xl flex items-center justify-between mb-4 flex-wrap gap-3 shrink-0">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-brand-600/10 text-brand-500 p-2 rounded-lg">
+                                <i data-lucide="activity" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-200">Interactive CS Architecture Lab</h3>
+                                <p class="text-[11px] text-slate-400" id="canvasDescription">Click elements on the canvas to interact dynamically, or switch modes below!</p>
+                            </div>
+                        </div>
+
+                        <!-- Visualization Selector -->
+                        <select id="vizSelector" class="bg-darkBg border border-darkBorder rounded-lg text-xs px-3 py-1.5 text-slate-300 focus:outline-none focus:border-brand-500">
+                            <option value="bubble">DSA: Bubble Sort</option>
+                            <option value="bst">DSA: Binary Search Tree Insertion</option>
+                            <option value="adder">Digital Logic: Full Adder Gate Circuit</option>
+                            <option value="fcfs">OS: CPU Process Scheduler (FCFS vs Round Robin)</option>
+                            <option value="packets">Networks: Dynamic Packet Router Path</option>
+                        </select>
+                    </div>
+
+                    <!-- Sandbox Visualization Area -->
+                    <div class="flex-1 bg-darkCard border border-darkBorder rounded-2xl relative flex flex-col overflow-hidden">
+                        <!-- Canvas Container -->
+                        <div id="simulationContainer" class="flex-1 relative bg-[#090d16] overflow-hidden flex items-center justify-center p-4">
+                            <div id="simulationPanel" class="w-full h-full flex flex-col items-center justify-center relative">
+                                <canvas id="vizCanvas" class="w-full h-full cursor-pointer"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Simulation Action Bar -->
+                        <div class="bg-darkCard/90 border-t border-darkBorder px-5 py-3 flex items-center justify-between gap-4 shrink-0 flex-wrap">
+                            <div class="flex items-center gap-2">
+                                <button id="runSimBtn" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 shadow-lg shadow-brand-600/10">
+                                    <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                                    Play Simulator
+                                </button>
+                                <button id="resetSimBtn" class="bg-[#182035] hover:bg-darkBorder text-slate-300 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5">
+                                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                    Reset
+                                </button>
+                                <button id="auxActionBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 hidden">
+                                    <!-- Dynamic Extra Interactive Control Button -->
+                                </button>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[11px] text-slate-400">Sim Speed:</span>
+                                    <input type="range" id="simSpeed" min="50" max="1500" value="400" class="w-24 accent-brand-500 bg-darkBg" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+
+        <!-- COLUMN 3: RIGHT SIDEBAR (AI Chatbot Interface) -->
+        <aside class="w-96 bg-darkCard/95 border-l border-darkBorder flex flex-col shrink-0 h-full max-h-full overflow-hidden">
+            
+            <!-- Chat Context Header -->
+            <div class="p-4 border-b border-darkBorder bg-darkCard/50 shrink-0">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <i data-lucide="message-square-code" class="w-4 h-4 text-brand-500"></i>
+                        Active Chat Context
+                    </span>
+                    <span id="selectedCountBadge" class="text-[10px] bg-brand-600/20 text-brand-400 font-semibold px-2 py-0.5 rounded-full border border-brand-500/30">
+                        0 Docs Selected
+                    </span>
+                </div>
+                <!-- Dynamic Context Pills -->
+                <div id="activeContextPills" class="flex flex-wrap gap-1.5 max-h-[64px] overflow-y-auto pt-1">
+                    <span class="text-[10px] text-slate-500 italic">No document selected. Talking about default subjects.</span>
+                </div>
+            </div>
+
+            <!-- Conversation Box -->
+            <div id="chatHistory" class="flex-1 overflow-y-auto p-4 space-y-4 bg-darkBg/30">
+                <!-- System Greeting -->
+                <div class="flex gap-3 max-w-[85%] mr-auto">
+                    <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white shrink-0 shadow-md">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    </div>
+                    <div class="bg-[#101726] border border-darkBorder/80 p-3.5 rounded-2xl rounded-tl-none shadow-sm">
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            Welcome to <strong class="text-brand-400">BitFlowLM</strong>! 
+                        </p>
+                        <p class="text-xs text-slate-300 leading-relaxed mt-2">
+                            Type your <strong class="text-slate-200">Gemini API Key</strong> in the header, upload documents to parse their text, and use the quick triggers below to start interactive visualizer environments!
+                        </p>
+                        <div class="mt-3 flex flex-wrap gap-1.5">
+                            <button onclick="sendQuickPrompt('Help me simulate Process States on the visualization canvas with Round Robin and FCFS!')" class="text-[10px] bg-darkBg border border-darkBorder hover:border-brand-500 px-2 py-1 rounded text-slate-300 transition-all">
+                                "OS Schedulers"
+                            </button>
+                            <button onclick="sendQuickPrompt('Explain Binary Search Tree (BST) insertion on the canvas')" class="text-[10px] bg-darkBg border border-darkBorder hover:border-brand-500 px-2 py-1 rounded text-slate-300 transition-all">
+                                "BST Visualizer"
+                            </button>
+                            <button onclick="sendQuickPrompt('Explain Digital Logic Gates and the Full Adder on the simulation canvas')" class="text-[10px] bg-darkBg border border-darkBorder hover:border-brand-500 px-2 py-1 rounded text-slate-300 transition-all">
+                                "Adder Gate Logic"
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="chatLoadingIndicator" class="hidden px-4 py-2 bg-darkCard border-t border-darkBorder/40 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="flex space-x-1">
+                        <div class="w-2.5 h-2.5 bg-brand-500 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                        <div class="w-2.5 h-2.5 bg-brand-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                        <div class="w-2.5 h-2.5 bg-brand-500 rounded-full animate-bounce" style="animation-delay: 0.3s"></div>
+                    </div>
+                    <span class="text-xs text-brand-400 font-medium">BitFlowLM parsing model parameters...</span>
+                </div>
+            </div>
+
+            <!-- Chat Input Area -->
+            <div class="p-4 bg-darkCard border-t border-darkBorder space-y-3 shrink-0">
+                <div class="relative bg-darkBg border border-darkBorder rounded-xl focus-within:border-brand-500 transition-colors">
+                    <textarea 
+                        id="chatInput" 
+                        rows="3" 
+                        placeholder="Ask BitFlowLM about DSA, gates, schedulers, router packets, or context documents..." 
+                        class="w-full bg-transparent border-0 text-xs text-slate-200 placeholder-slate-500 outline-none p-3 resize-none focus:ring-0 leading-relaxed"
+                    ></textarea>
+                    
+                    <div class="flex justify-between items-center px-3 py-2 border-t border-darkBorder/40">
+                        <div class="flex items-center gap-2">
+                            <button id="quickVizTrigger" class="text-brand-500 hover:text-brand-400 p-1 rounded hover:bg-brand-950/20 flex items-center gap-1 transition-all" title="Toggle Sim Canvas">
+                                <i data-lucide="play-circle" class="w-4 h-4"></i>
+                                <span class="text-[10px] font-bold uppercase tracking-wider">Sim Canvas</span>
+                            </button>
+                        </div>
+                        <button 
+                            id="sendChatBtn" 
+                            class="bg-brand-600 hover:bg-brand-700 text-white p-1.5 px-3 rounded-lg flex items-center gap-1.5 shadow-md shadow-brand-600/10 transition-colors"
+                        >
+                            <span class="text-xs font-semibold">Send</span>
+                            <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <p class="text-[10px] text-center text-slate-500">
+                    Client-side sandbox. Direct context payload links through Gemini 2.5 Flash model.
+                </p>
+            </div>
+
+        </aside>
+
+    </div>
+
+    <!-- MAIN SYSTEM LOGIC -->
+    <script>
+        // State Management
+        let appState = {
+            documents: [],
+            activeDocId: null,
+            activePdfDocInstance: null,
+            currentPdfPage: 1,
+            selectedDocIds: new Set(),
+            apiKey: '',
+            chatHistory: []
+        };
+
+        // DOM elements
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const toggleKeyVis = document.getElementById('toggleKeyVis');
+        const visIcon = document.getElementById('visIcon');
+        const connectionIndicator = document.getElementById('connectionIndicator');
+        const indicatorPulse = document.getElementById('indicatorPulse');
+        const indicatorDot = document.getElementById('indicatorDot');
+        const indicatorText = document.getElementById('indicatorText');
+        const errorTooltip = document.getElementById('errorTooltip');
+        const tooltipErrorText = document.getElementById('tooltipErrorText');
+
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const clearAllDocs = document.getElementById('clearAllDocs');
+
+        const tabDocBtn = document.getElementById('tabDocBtn');
+        const tabCanvasBtn = document.getElementById('tabCanvasBtn');
+        const tabDocContent = document.getElementById('tabDocContent');
+        const tabCanvasContent = document.getElementById('tabCanvasContent');
+        const activeDocBadge = document.getElementById('activeDocBadge');
+
+        const viewerFallback = document.getElementById('viewerFallback');
+        const pdfViewerFrame = document.getElementById('pdfViewerFrame');
+        const pdfNameTitle = document.getElementById('pdfNameTitle');
+        const pdfPageNum = document.getElementById('pdfPageNum');
+        const pdfTotalPages = document.getElementById('pdfTotalPages');
+        const prevPageBtn = document.getElementById('prevPageBtn');
+        const nextPageBtn = document.getElementById('nextPageBtn');
+        const pdfRendererCanvas = document.getElementById('pdfRendererCanvas');
+
+        const vizSelector = document.getElementById('vizSelector');
+        const vizCanvas = document.getElementById('vizCanvas');
+        const runSimBtn = document.getElementById('runSimBtn');
+        const resetSimBtn = document.getElementById('resetSimBtn');
+        const auxActionBtn = document.getElementById('auxActionBtn');
+        const simSpeed = document.getElementById('simSpeed');
+        const canvasDescription = document.getElementById('canvasDescription');
+
+        const activeContextPills = document.getElementById('activeContextPills');
+        const selectedCountBadge = document.getElementById('selectedCountBadge');
+        const chatHistory = document.getElementById('chatHistory');
+        const chatInput = document.getElementById('chatInput');
+        const sendChatBtn = document.getElementById('sendChatBtn');
+        const chatLoadingIndicator = document.getElementById('chatLoadingIndicator');
+        const quickVizTrigger = document.getElementById('quickVizTrigger');
+
+        // Initial Setup
+        window.addEventListener('load', () => {
+            const savedKey = localStorage.getItem('bitflow_gemini_key');
+            if (savedKey) {
+                apiKeyInput.value = savedKey;
+                appState.apiKey = savedKey;
+                validateApiKey(savedKey);
+            }
+            
+            lucide.createIcons();
+            setupDragAndDrop();
+            setupCanvasSim();
+            switchCenterTab('doc');
+        });
+
+        // Toggle Key Visibility
+        toggleKeyVis.addEventListener('click', () => {
+            if (apiKeyInput.type === 'password') {
+                apiKeyInput.type = 'text';
+                visIcon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                apiKeyInput.type = 'password';
+                visIcon.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        });
+
+        // Key Input Updates
+        let keyTimeout;
+        apiKeyInput.addEventListener('input', (e) => {
+            const key = e.target.value.trim();
+            appState.apiKey = key;
+            localStorage.setItem('bitflow_gemini_key', key);
+            
+            // Debounce the key validation request
+            clearTimeout(keyTimeout);
+            if (key) {
+                keyTimeout = setTimeout(() => {
+                    validateApiKey(key);
+                }, 800);
+            } else {
+                setConnectionStatus('disconnected', 'Disconnected', 'Please enter your API Key.');
+            }
+        });
+
+        // Exponential Backoff API Wrapper
+        async function fetchWithBackoff(url, options, maxRetries = 5) {
+            let delay = 1000;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) return response;
+                    
+                    // If rate-limited or transient server issue, back off
+                    if (response.status === 429 || response.status >= 500) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2;
+                        continue;
+                    }
+                    return response; // Return other failure responses directly
+                } catch (err) {
+                    if (i === maxRetries - 1) throw err;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+            }
+            throw new Error("Maximum retries reached with network failures.");
+        }
+
+        // Validate Key using standard Gemini Models list / small ping
+        async function validateApiKey(key) {
+            setConnectionStatus('verifying', 'Verifying...', '');
+            try {
+                const response = await fetchWithBackoff(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: "ping" }] }]
+                    })
+                }, 2); // Quick validation shouldn't back off too long
+
+                if (response.ok) {
+                    setConnectionStatus('connected', 'Connected', '');
+                } else {
+                    const errDetail = await response.json().catch(() => ({}));
+                    const errMsg = errDetail.error?.message || "Invalid credentials supplied.";
+                    setConnectionStatus('error', 'Invalid Key', errMsg);
+                }
+            } catch (err) {
+                setConnectionStatus('error', 'Offline/Error', "Network communication failure. Please check connection.");
+            }
+        }
+
+        function setConnectionStatus(state, message, explanation) {
+            indicatorPulse.className = "absolute inline-flex h-full w-full rounded-full opacity-75";
+            errorTooltip.classList.add('hidden');
+            
+            if (state === 'connected') {
+                indicatorPulse.classList.add('animate-status-pulse', 'bg-emerald-400');
+                indicatorDot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500";
+                indicatorText.className = "text-xs font-semibold text-emerald-400";
+            } else if (state === 'verifying') {
+                indicatorPulse.classList.add('animate-status-pulse', 'bg-amber-400');
+                indicatorDot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500";
+                indicatorText.className = "text-xs font-semibold text-amber-400";
+            } else if (state === 'error') {
+                indicatorPulse.classList.add('bg-red-400');
+                indicatorDot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500";
+                indicatorText.className = "text-xs font-semibold text-red-400";
+                errorTooltip.classList.remove('hidden');
+                tooltipErrorText.textContent = explanation || "Failed to verify key.";
+            } else {
+                indicatorPulse.classList.add('bg-slate-400');
+                indicatorDot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-500";
+                indicatorText.className = "text-xs font-semibold text-slate-400";
+            }
+            indicatorText.textContent = message;
+        }
+
+        // Drag & Drop
+        function setupDragAndDrop() {
+            dropzone.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('border-brand-500', 'bg-[#0c1221]');
+            });
+
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('border-brand-500', 'bg-[#0c1221]');
+            });
+
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('border-brand-500', 'bg-[#0c1221]');
+                if (e.dataTransfer.files) {
+                    handleFiles(e.dataTransfer.files);
+                }
+            });
+        }
+
+        async function handleFiles(files) {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.type !== 'application/pdf') {
+                    showSystemMessage(`Skipped "${file.name}": Only PDFs supported.`);
+                    continue;
+                }
+                
+                showSystemMessage(`Extracting content from "${file.name}"...`);
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const extractedText = await parsePdfText(arrayBuffer);
+                    const domain = autoClassifyTopic(file.name, extractedText);
+                    
+                    const newDoc = {
+                        id: crypto.randomUUID(),
+                        name: file.name,
+                        text: extractedText,
+                        category: domain,
+                        fileData: arrayBuffer
+                    };
+
+                    appState.documents.push(newDoc);
+                    appState.selectedDocIds.add(newDoc.id);
+                    
+                    renderDocumentsUI();
+                    activateDocument(newDoc.id);
+                    showSystemMessage(`Analyzed and categorized "${file.name}" under ${domain}.`);
+                } catch (error) {
+                    console.error(error);
+                    showSystemMessage(`Failed to read PDF "${file.name}".`);
+                }
+            }
+            fileInput.value = '';
+        }
+
+        async function parsePdfText(arrayBuffer) {
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = '';
+            const limitPages = Math.min(pdf.numPages, 15);
+            for (let i = 1; i <= limitPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                fullText += `[Page ${i}] ` + pageText + '\n\n';
+            }
+            return fullText || "Empty text stream parsed.";
+        }
+
+        function autoClassifyTopic(filename, text) {
+            const sample = (filename + ' ' + text).toLowerCase();
+            if (sample.includes('tree') || sample.includes('graph') || sample.includes('sorting') || sample.includes('bst') || sample.includes('algorithm') || sample.includes('data structure') || sample.includes('sort') || sample.includes('linked list')) return 'DSA';
+            if (sample.includes('gate') || sample.includes('boolean') || sample.includes('adder') || sample.includes('multiplexer') || sample.includes('flip flop') || sample.includes('karnaugh')) return 'Digital Logic';
+            if (sample.includes('process') || sample.includes('thread') || sample.includes('scheduler') || sample.includes('paging') || sample.includes('deadlock') || sample.includes('semaphore') || sample.includes('operating system')) return 'OS';
+            if (sample.includes('ip address') || sample.includes('tcp') || sample.includes('udp') || sample.includes('router') || sample.includes('packet') || sample.includes('network') || sample.includes('layer')) return 'Networks';
+            return 'General';
+        }
+
+        function renderDocumentsUI() {
+            const categories = {
+                'DSA': { list: document.getElementById('list-dsa'), count: document.getElementById('count-dsa') },
+                'Digital Logic': { list: document.getElementById('list-logic'), count: document.getElementById('count-logic') },
+                'OS': { list: document.getElementById('list-os'), count: document.getElementById('count-os') },
+                'Networks': { list: document.getElementById('list-networks'), count: document.getElementById('count-networks') },
+                'General': { list: document.getElementById('list-general'), count: document.getElementById('count-general') }
+            };
+
+            Object.keys(categories).forEach(cat => categories[cat].list.innerHTML = '');
+            const counts = { 'DSA': 0, 'Digital Logic': 0, 'OS': 0, 'Networks': 0, 'General': 0 };
+
+            appState.documents.forEach(doc => {
+                counts[doc.category] = (counts[doc.category] || 0) + 1;
+                const container = categories[doc.category].list;
+                
+                const docDiv = document.createElement('div');
+                docDiv.className = `flex items-center justify-between p-2 rounded-lg text-xs hover:bg-[#1c2438] transition-all group ${appState.activeDocId === doc.id ? 'bg-[#182035] border border-brand-500/20' : ''}`;
+                
+                const isChecked = appState.selectedDocIds.has(doc.id);
+                
+                docDiv.innerHTML = `
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <input 
+                            type="checkbox" 
+                            class="doc-checkbox rounded text-brand-600 focus:ring-brand-500 bg-darkBg border-darkBorder w-3.5 h-3.5 cursor-pointer accent-brand-500" 
+                            ${isChecked ? 'checked' : ''} 
+                            data-id="${doc.id}"
+                        />
+                        <span class="truncate text-slate-300 font-medium cursor-pointer flex-1 py-1 text-left select-text hover:text-white" onclick="activateDocument('${doc.id}')">
+                            ${doc.name}
+                        </span>
+                    </div>
+                    <button class="delete-doc-btn hidden group-hover:block text-slate-500 hover:text-red-400 p-1" data-id="${doc.id}">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                `;
+
+                // Handle Checkbox
+                docDiv.querySelector('.doc-checkbox').addEventListener('change', (e) => {
+                    if (e.target.checked) appState.selectedDocIds.add(doc.id);
+                    else appState.selectedDocIds.delete(doc.id);
+                    updateChatContextUI();
+                });
+
+                // Delete Button
+                docDiv.querySelector('.delete-doc-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    removeDocument(doc.id);
+                });
+
+                container.appendChild(docDiv);
+            });
+
+            Object.keys(categories).forEach(cat => {
+                categories[cat].count.textContent = counts[cat];
+                if (counts[cat] === 0) {
+                    categories[cat].list.innerHTML = `<p class="text-[10px] text-slate-500 text-center py-2 italic">No context files loaded</p>`;
+                }
+            });
+
+            updateChatContextUI();
+            lucide.createIcons();
+        }
+
+        function updateChatContextUI() {
+            selectedCountBadge.textContent = `${appState.selectedDocIds.size} Doc${appState.selectedDocIds.size !== 1 ? 's' : ''} Selected`;
+            activeContextPills.innerHTML = '';
+
+            if (appState.selectedDocIds.size === 0) {
+                activeContextPills.innerHTML = `<span class="text-[10px] text-slate-500 italic">No document selected. Talking about default subjects.</span>`;
+                return;
+            }
+
+            appState.selectedDocIds.forEach(id => {
+                const doc = appState.documents.find(d => d.id === id);
+                if (doc) {
+                    const pill = document.createElement('span');
+                    pill.className = "flex items-center gap-1 text-[10px] bg-brand-900/40 text-brand-300 px-2.5 py-1 rounded-lg border border-brand-800/40 truncate max-w-[140px]";
+                    pill.innerHTML = `
+                        <i data-lucide="file-text" class="w-2.5 h-2.5 shrink-0"></i>
+                        <span class="truncate">${doc.name}</span>
+                        <button class="remove-pill-btn text-brand-400 hover:text-brand-200 ml-1 font-bold" data-id="${doc.id}">&times;</button>
+                    `;
+                    pill.querySelector('.remove-pill-btn').addEventListener('click', () => {
+                        appState.selectedDocIds.delete(doc.id);
+                        renderDocumentsUI();
+                    });
+                    activeContextPills.appendChild(pill);
+                }
+            });
+            lucide.createIcons();
+        }
+
+        function removeDocument(id) {
+            appState.documents = appState.documents.filter(d => d.id !== id);
+            appState.selectedDocIds.delete(id);
+            if (appState.activeDocId === id) {
+                appState.activeDocId = null;
+                appState.activePdfDocInstance = null;
+                pdfViewerFrame.classList.add('hidden');
+                viewerFallback.classList.remove('hidden');
+                activeDocBadge.textContent = "No Active Document";
+            }
+            renderDocumentsUI();
+            showSystemMessage("Context source removed.");
+        }
+
+        clearAllDocs.addEventListener('click', () => {
+            if (confirm("Remove all uploaded documents from this study session?")) {
+                appState.documents = [];
+                appState.selectedDocIds.clear();
+                appState.activeDocId = null;
+                appState.activePdfDocInstance = null;
+                pdfViewerFrame.classList.add('hidden');
+                viewerFallback.classList.remove('hidden');
+                activeDocBadge.textContent = "No Active Document";
+                renderDocumentsUI();
+            }
+        });
+
+        async function activateDocument(id) {
+            const doc = appState.documents.find(d => d.id === id);
+            if (!doc) return;
+
+            appState.activeDocId = id;
+            activeDocBadge.textContent = doc.name;
+            pdfNameTitle.textContent = doc.name;
+            
+            renderDocumentsUI();
+            switchCenterTab('doc');
+
+            try {
+                viewerFallback.classList.add('hidden');
+                pdfViewerFrame.classList.remove('hidden');
+                
+                const loadingTask = pdfjsLib.getDocument({ data: doc.fileData });
+                appState.activePdfDocInstance = await loadingTask.promise;
+                appState.currentPdfPage = 1;
+                pdfTotalPages.textContent = appState.activePdfDocInstance.numPages;
+                
+                renderPdfPage(appState.currentPdfPage);
+            } catch (err) {
+                console.error(err);
+                pdfViewerFrame.classList.add('hidden');
+                viewerFallback.classList.remove('hidden');
+                showSystemMessage("Could not open view frame.");
+            }
+        }
+
+        async function renderPdfPage(pageNum) {
+            if (!appState.activePdfDocInstance) return;
+            pdfPageNum.textContent = pageNum;
+
+            try {
+                const page = await appState.activePdfDocInstance.getPage(pageNum);
+                const viewport = page.getViewport({ scale: 1.5 });
+                const context = pdfRendererCanvas.getContext('2d');
+                pdfRendererCanvas.height = viewport.height;
+                pdfRendererCanvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                await page.render(renderContext).promise;
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        prevPageBtn.addEventListener('click', () => {
+            if (appState.currentPdfPage > 1) {
+                appState.currentPdfPage--;
+                renderPdfPage(appState.currentPdfPage);
+            }
+        });
+
+        nextPageBtn.addEventListener('click', () => {
+            if (appState.activePdfDocInstance && appState.currentPdfPage < appState.activePdfDocInstance.numPages) {
+                appState.currentPdfPage++;
+                renderPdfPage(appState.currentPdfPage);
+            }
+        });
+
+        function switchCenterTab(tab) {
+            if (tab === 'doc') {
+                tabDocBtn.className = "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 bg-brand-600 text-white";
+                tabCanvasBtn.className = "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 text-slate-400 hover:text-slate-200";
+                tabDocContent.classList.remove('hidden');
+                tabDocContent.classList.add('opacity-100');
+                tabCanvasContent.classList.add('hidden');
+                tabCanvasContent.classList.add('opacity-0');
+            } else if (tab === 'canvas') {
+                tabCanvasBtn.className = "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 bg-brand-600 text-white";
+                tabDocBtn.className = "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 text-slate-400 hover:text-slate-200";
+                tabCanvasContent.classList.remove('hidden');
+                tabCanvasContent.classList.add('opacity-100');
+                tabDocContent.classList.add('hidden');
+                tabDocContent.classList.add('opacity-0');
+                
+                // Allow browser reflow to finish before querying dimensions
+                setTimeout(() => {
+                    resizeSimCanvas();
+                    initSelectedSimulation();
+                }, 50);
+            }
+        }
+
+        function showSystemMessage(msg) {
+            const systemMsg = document.createElement('div');
+            systemMsg.className = "text-center text-[10px] text-slate-500 bg-darkCard/30 py-1.5 px-3 rounded-lg border border-darkBorder/40 max-w-md mx-auto shrink-0";
+            systemMsg.innerHTML = `<span class="font-bold text-brand-400">System Log:</span> ${msg}`;
+            chatHistory.appendChild(systemMsg);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function sendQuickPrompt(promptText) {
+            chatInput.value = promptText;
+            chatInput.focus();
+        }
+
+        quickVizTrigger.addEventListener('click', () => {
+            switchCenterTab('canvas');
+            showSystemMessage("Switched workspace to Visualization Canvas mode.");
+        });
+
+        sendChatBtn.addEventListener('click', handleChatSubmit);
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleChatSubmit();
+            }
+        });
+
+        async function handleChatSubmit() {
+            const userMsgText = chatInput.value.trim();
+            if (!userMsgText) return;
+
+            appendMessage('user', userMsgText);
+            chatInput.value = '';
+
+            if (!appState.apiKey) {
+                appendMessage('system', "No API Key provided. Please input your Gemini API Key in the upper right header input field to operate the chat visualization assistance engine.", true);
+                return;
+            }
+
+            chatLoadingIndicator.classList.remove('hidden');
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            try {
+                let contextBlock = "";
+                if (appState.selectedDocIds.size > 0) {
+                    contextBlock += "--- BEGIN RELEVANT DOCUMENTS CONTEXT ---\n";
+                    appState.selectedDocIds.forEach(id => {
+                        const doc = appState.documents.find(d => d.id === id);
+                        if (doc) {
+                            contextBlock += `Document Title: ${doc.name}\n`;
+                            contextBlock += `Extracted Content:\n${doc.text}\n\n`;
+                        }
+                    });
+                    contextBlock += "--- END RELEVANT DOCUMENTS CONTEXT ---\n\n";
+                }
+
+                const systemPrompt = `You are "BitFlowLM", an interactive simulation assistant specializing in Core CS subjects.
+
+Mission: Instruct the user and supply visualization markers inside your feedback.
+If appropriate, trigger interactive canvas updates by adding a precise single line code token at the VERY END of your feedback block:
+[TRIGGER_VIZ:BUBBLE] - To set up/reset sorting
+[TRIGGER_VIZ:BST] - To launch the binary search tree insertion model
+[TRIGGER_VIZ:ADDER] - To load the Interactive Logic Gate schematic (inputs toggleable via mouse click!)
+[TRIGGER_VIZ:FCFS] - To open operating system Process Scheduler
+[TRIGGER_VIZ:PACKETS] - To start packet routing simulation
+
+Provide structured answers with standard markdown syntax. Output code snippets cleanly inside preformatted syntax blocks. Keep tone academic yet highly supportive.`;
+
+                const fullPayloadPrompt = `${contextBlock}User Question: ${userMsgText}`;
+
+                // Fetch using custom exponential backoff logic (up to 5 attempts)
+                const response = await fetchWithBackoff(
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${appState.apiKey}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: fullPayloadPrompt }] }],
+                            systemInstruction: { parts: [{ text: systemPrompt }] }
+                        })
+                    },
+                    5
+                );
+
+                if (!response.ok) {
+                    const errDetail = await response.json().catch(() => ({}));
+                    throw new Error(errDetail.error?.message || `Server responded with status code ${response.status}`);
+                }
+
+                const data = await response.json();
+                const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response received.";
+                
+                let cleanResponse = responseText;
+                let triggerFound = null;
+                const triggerRegex = /\[TRIGGER_VIZ:(BUBBLE|BST|ADDER|FCFS|PACKETS)\]/g;
+                const match = responseText.match(/\[TRIGGER_VIZ:(BUBBLE|BST|ADDER|FCFS|PACKETS)\]/);
+                
+                if (match) {
+                    triggerFound = match[1];
+                    cleanResponse = responseText.replace(triggerRegex, '').trim();
+                }
+
+                appendMessage('assistant', cleanResponse);
+
+                if (triggerFound) {
+                    executeSimSwitch(triggerFound);
+                }
+
+            } catch (err) {
+                console.error(err);
+                appendMessage('system', "Gemini Error: " + err.message + ". Check your quota limitations or endpoint availability.", true);
+            } finally {
+                chatLoadingIndicator.classList.add('hidden');
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+        }
+
+        function executeSimSwitch(vizType) {
+            switchCenterTab('canvas');
+            let selectionValue = 'bubble';
+            if (vizType === 'BUBBLE') selectionValue = 'bubble';
+            if (vizType === 'BST') selectionValue = 'bst';
+            if (vizType === 'ADDER') selectionValue = 'adder';
+            if (vizType === 'FCFS') selectionValue = 'fcfs';
+            if (vizType === 'PACKETS') selectionValue = 'packets';
+
+            vizSelector.value = selectionValue;
+            initSelectedSimulation();
+            showSystemMessage(`BitFlowLM initialized the workspace canvas for: ${selectionValue.toUpperCase()}`);
+        }
+
+        function appendMessage(sender, text, isError = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex gap-3 max-w-[85%] ${sender === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'} shrink-0`;
+
+            let avatar = '';
+            let contentClass = '';
+
+            if (sender === 'user') {
+                avatar = `<div class="w-8 h-8 rounded-lg bg-indigo-700/80 border border-indigo-500/30 flex items-center justify-center text-white shrink-0"><i data-lucide="user" class="w-4 h-4"></i></div>`;
+                contentClass = 'bg-brand-600 text-white rounded-tr-none border border-brand-500/20';
+            } else if (sender === 'assistant') {
+                avatar = `<div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white shrink-0 shadow-md"><i data-lucide="sparkles" class="w-4 h-4 text-indigo-100"></i></div>`;
+                contentClass = 'bg-[#101726] border border-darkBorder text-slate-200 rounded-tl-none';
+            } else {
+                avatar = `<div class="w-8 h-8 rounded-lg bg-red-950 flex items-center justify-center text-red-400 border border-red-900/40 shrink-0"><i data-lucide="alert-circle" class="w-4 h-4"></i></div>`;
+                contentClass = 'bg-red-950/20 text-red-300 border border-red-900/40 rounded-tl-none';
+            }
+
+            let parsedHtml = text;
+            if (typeof marked !== 'undefined') {
+                parsedHtml = marked.parse(text);
+            } else {
+                parsedHtml = `<p class="whitespace-pre-wrap">${text}</p>`;
+            }
+
+            messageDiv.innerHTML = `
+                ${avatar}
+                <div class="p-3.5 rounded-2xl shadow-sm text-xs leading-relaxed max-w-full ${contentClass}">
+                    <div class="prose prose-invert prose-xs max-w-full select-text">
+                        ${parsedHtml}
+                    </div>
+                </div>
+            `;
+
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        //  UPGRADED INTERACTIVE CANVAS SYSTEMS
+        // ==========================================
+        let simIntervalId = null;
+        let simDataState = {};
+        const ctx = vizCanvas.getContext('2d');
+
+        function setupCanvasSim() {
+            vizSelector.addEventListener('change', () => initSelectedSimulation());
+            
+            runSimBtn.addEventListener('click', () => {
+                if (simIntervalId) {
+                    pauseSim();
+                } else {
+                    startSimulationLoop();
+                }
+            });
+
+            resetSimBtn.addEventListener('click', () => {
+                initSelectedSimulation();
+            });
+
+            simSpeed.addEventListener('input', () => {
+                if (simIntervalId) {
+                    clearInterval(simIntervalId);
+                    startSimulationLoop();
+                }
+            });
+
+            // Canvas Dynamic Interactive Clicks
+            vizCanvas.addEventListener('click', handleCanvasClick);
+
+            window.addEventListener('resize', resizeSimCanvas);
+            initSelectedSimulation();
+        }
+
+        function pauseSim() {
+            if (simIntervalId) {
+                clearInterval(simIntervalId);
+                simIntervalId = null;
+                runSimBtn.innerHTML = `<i data-lucide="play" class="w-3.5 h-3.5"></i> Play Simulator`;
+                runSimBtn.className = "bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 shadow-lg shadow-brand-600/10";
+                lucide.createIcons();
+            }
+        }
+
+        let lastWidth = 600;
+        let lastHeight = 450;
+        function resizeSimCanvas() {
+            const container = document.getElementById('simulationContainer');
+            if (container && !tabCanvasContent.classList.contains('hidden')) {
+                const newW = container.clientWidth;
+                const newH = container.clientHeight;
+                if (newW === 0 || newH === 0) return;
+
+                const dpr = window.devicePixelRatio || 1;
+                vizCanvas.width = newW * dpr;
+                vizCanvas.height = newH * dpr;
+                vizCanvas.style.width = newW + 'px';
+                vizCanvas.style.height = newH + 'px';
+                ctx.scale(dpr, dpr);
+
+                // Adjust positions of elements if width/height changed dynamically
+                if (lastWidth !== newW || lastHeight !== newH) {
+                    scaleSimDataPositions(lastWidth, newW, lastHeight, newH);
+                    lastWidth = newW;
+                    lastHeight = newH;
+                }
+
+                drawCurrentFrame();
+            }
+        }
+
+        function scaleSimDataPositions(oldW, newW, oldH, newH) {
+            if (!simDataState || !oldW || !oldH) return;
+            const scaleX = newW / oldW;
+            const scaleY = newH / oldH;
+
+            if (simDataState.type === 'bst') {
+                simDataState.nodes.forEach(node => {
+                    node.x = node.x * scaleX;
+                });
+            } else if (simDataState.type === 'packets') {
+                simDataState.nodes.forEach(node => {
+                    node.x = node.x * scaleX;
+                    node.y = node.y * scaleY;
+                });
+            }
+        }
+
+        // Dynamic click coordinates capture
+        function handleCanvasClick(e) {
+            const rect = vizCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (simDataState.type === 'adder') {
+                // Interactive switch toggles inside Digital Logic layout
+                simDataState.interactiveElements.forEach(elem => {
+                    const dist = Math.hypot(x - elem.x, y - elem.y);
+                    if (dist < 18) {
+                        elem.active = !elem.active;
+                        if (elem.id === 'inA') simDataState.inA = elem.active ? 1 : 0;
+                        if (elem.id === 'inB') simDataState.inB = elem.active ? 1 : 0;
+                        if (elem.id === 'inCin') simDataState.inCin = elem.active ? 1 : 0;
+                        calculateLogicAdder();
+                        drawCurrentFrame();
+                    }
+                });
+            }
+            else if (simDataState.type === 'fcfs') {
+                // Interactive queue execution control trigger
+                simDataState.processes.forEach(p => {
+                    if (x > p.x && x < p.x + 80 && y > p.y && y < p.y + 35) {
+                        // Boost process burst dynamically on click
+                        p.burst += 2;
+                        p.remains += 2;
+                        drawCurrentFrame();
+                        showSystemMessage(`Increased process ${p.id} burst size dynamically!`);
+                    }
+                });
+            }
+        }
+
+        // Initialize selected algorithm data
+        function initSelectedSimulation() {
+            pauseSim();
+            auxActionBtn.classList.add('hidden');
+            auxActionBtn.onclick = null;
+
+            const current = vizSelector.value;
+            const container = document.getElementById('simulationContainer');
+            const w = container.clientWidth || 600;
+            const h = container.clientHeight || 450;
+
+            lastWidth = w;
+            lastHeight = h;
+
+            if (current === 'bubble') {
+                canvasDescription.textContent = "Bubble Sort: Tracks comparative pointers and swaps elements dynamically on iteration steps.";
+                auxActionBtn.classList.remove('hidden');
+                auxActionBtn.innerHTML = `<i data-lucide="shuffle" class="w-3.5 h-3.5"></i> Shuffle`;
+                auxActionBtn.onclick = () => { initSelectedSimulation(); };
+
+                simDataState = {
+                    type: 'bubble',
+                    array: Array.from({length: 12}, () => Math.floor(Math.random() * 80) + 15),
+                    i: 0,
+                    j: 0,
+                    swapped: false,
+                    isDone: false,
+                    comparing: [],
+                    comparisonsCount: 0,
+                    swapsCount: 0
+                };
+            } 
+            else if (current === 'bst') {
+                canvasDescription.textContent = "Binary Search Tree: Visually traces insertion branching pathways step by step.";
+                auxActionBtn.classList.remove('hidden');
+                auxActionBtn.innerHTML = `<i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Value`;
+                auxActionBtn.onclick = () => {
+                    const r = Math.floor(Math.random() * 90) + 10;
+                    simDataState.pendingVals.push(r);
+                    drawCurrentFrame();
+                    if (!simIntervalId) startSimulationLoop();
+                };
+
+                simDataState = {
+                    type: 'bst',
+                    nodes: [
+                        {val: 50, x: w/2, y: 50, left: null, right: null}
+                    ],
+                    pendingVals: [30, 70, 20, 45, 62, 85],
+                    currentVal: null,
+                    currentNode: null,
+                    step: 'idle',
+                    comparisonNode: null,
+                    trail: []
+                };
+            } 
+            else if (current === 'adder') {
+                canvasDescription.textContent = "Full Adder Gate Circuit: Click Input high/low circles at left to dynamically toggle output logic!";
+                simDataState = {
+                    type: 'adder',
+                    inA: 1,
+                    inB: 0,
+                    inCin: 1,
+                    sum: 0,
+                    cout: 0,
+                    interactiveElements: [
+                        {id: 'inA', label: 'Input A', x: 60, y: 100, active: true},
+                        {id: 'inB', label: 'Input B', x: 60, y: 180, active: false},
+                        {id: 'inCin', label: 'Carry In (Cin)', x: 60, y: 260, active: true}
+                    ]
+                };
+                calculateLogicAdder();
+            } 
+            else if (current === 'fcfs') {
+                canvasDescription.textContent = "CPU Scheduling: Simulates FCFS and Round Robin processing. Click any process box to increase burst!";
+                auxActionBtn.classList.remove('hidden');
+                auxActionBtn.innerHTML = `<i data-lucide="toggle-left" class="w-3.5 h-3.5"></i> Switch RR/FCFS`;
+                auxActionBtn.onclick = () => {
+                    simDataState.mode = simDataState.mode === 'FCFS' ? 'RR' : 'FCFS';
+                    showSystemMessage(`Scheduler Mode changed to: ${simDataState.mode}`);
+                    initSelectedSimulation();
+                };
+
+                simDataState = {
+                    type: 'fcfs',
+                    processes: [
+                        {id: 'P1', burst: 6, remains: 6, color: '#3b82f6', x: 40, y: 100},
+                        {id: 'P2', burst: 4, remains: 4, color: '#10b981', x: 40, y: 140},
+                        {id: 'P3', burst: 8, remains: 8, color: '#8b5cf6', x: 40, y: 180},
+                        {id: 'P4', burst: 3, remains: 3, color: '#f59e0b', x: 40, y: 220}
+                    ],
+                    activeProcessIdx: 0,
+                    scheduleQueue: ['P1', 'P2', 'P3', 'P4'],
+                    ganttChart: [],
+                    time: 0,
+                    mode: 'FCFS', // Mode switch FCFS vs Round Robin
+                    timeQuantum: 2,
+                    currentQElapsed: 0
+                };
+            } 
+            else if (current === 'packets') {
+                canvasDescription.textContent = "Router Packet Simulation: Simulates real-time congestion and connection routes.";
+                auxActionBtn.classList.remove('hidden');
+                auxActionBtn.innerHTML = `<i data-lucide="zap" class="w-3.5 h-3.5"></i> Simulate Traffic Boost`;
+                auxActionBtn.onclick = () => {
+                    for(let i=0; i<5; i++) {
+                        simDataState.activePackets.push({
+                            currentNode: 0,
+                            nextNode: Math.random() < 0.5 ? 1 : 2,
+                            progress: Math.random() * 0.4,
+                            color: '#3b82f6',
+                            size: Math.floor(Math.random() * 3) + 2
+                        });
+                    }
+                    drawCurrentFrame();
+                };
+
+                simDataState = {
+                    type: 'packets',
+                    nodes: [
+                        {id: 'Router A', x: 100, y: 200, type: 'source'},
+                        {id: 'Router B', x: 260, y: 110, type: 'node'},
+                        {id: 'Router C', x: 260, y: 290, type: 'node'},
+                        {id: 'Router D', x: 450, y: 200, type: 'dest'}
+                    ],
+                    connections: [
+                        {from: 0, to: 1, active: true},
+                        {from: 0, to: 2, active: true},
+                        {from: 1, to: 3, active: true},
+                        {from: 2, to: 3, active: true},
+                        {from: 1, to: 2, active: true}
+                    ],
+                    activePackets: [],
+                    packetsDelivered: 0,
+                    networkCongestion: "Optimal"
+                };
+            }
+
+            resizeSimCanvas();
+            lucide.createIcons();
+        }
+
+        function calculateLogicAdder() {
+            const A = simDataState.inA;
+            const B = simDataState.inB;
+            const Cin = simDataState.inCin;
+            const firstXor = A ^ B;
+            simDataState.sum = firstXor ^ Cin;
+            const firstAnd = A & B;
+            const secondAnd = firstXor & Cin;
+            simDataState.cout = firstAnd | secondAnd;
+        }
+
+        function startSimulationLoop() {
+            const speed = parseInt(simSpeed.value);
+            simIntervalId = setInterval(() => {
+                stepSimulation();
+                drawCurrentFrame();
+            }, speed);
+            runSimBtn.innerHTML = `<i data-lucide="pause" class="w-3.5 h-3.5"></i> Pause Simulator`;
+            runSimBtn.className = "bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 shadow-lg shadow-amber-600/10";
+            lucide.createIcons();
+        }
+
+        // STEP THROUGH SIMULATION
+        function stepSimulation() {
+            if (simDataState.type === 'bubble') {
+                const s = simDataState;
+                if (s.isDone) {
+                    pauseSim();
+                    return;
+                }
+
+                s.comparisonsCount++;
+                s.comparing = [s.j, s.j + 1];
+
+                if (s.array[s.j] > s.array[s.j + 1]) {
+                    // swap elements
+                    const tmp = s.array[s.j];
+                    s.array[s.j] = s.array[s.j + 1];
+                    s.array[s.j + 1] = tmp;
+                    s.swapped = true;
+                    s.swapsCount++;
+                }
+
+                s.j++;
+                if (s.j >= s.array.length - s.i - 1) {
+                    s.j = 0;
+                    s.i++;
+                    if (!s.swapped) {
+                        s.isDone = true;
+                    }
+                    s.swapped = false;
+                }
+
+                if (s.i >= s.array.length - 1) {
+                    s.isDone = true;
+                }
+            } 
+            else if (simDataState.type === 'bst') {
+                const s = simDataState;
+                if (s.pendingVals.length === 0 && s.step === 'idle') {
+                    pauseSim();
+                    return;
+                }
+
+                if (s.step === 'idle') {
+                    s.currentVal = s.pendingVals.shift();
+                    s.currentNode = s.nodes[0];
+                    s.step = 'traversing';
+                    s.trail = [0];
+                } 
+                else if (s.step === 'traversing') {
+                    const node = s.currentNode;
+                    s.comparisonNode = node;
+                    
+                    if (s.currentVal < node.val) {
+                        if (node.left === null) {
+                            // Calculate depth spacing proportionally
+                            const depth = Math.floor((node.y - 50) / 60);
+                            const offset = Math.max(lastWidth / Math.pow(2, depth + 2), 30);
+                            
+                            const newNode = {
+                                val: s.currentVal,
+                                x: node.x - offset,
+                                y: node.y + 60,
+                                left: null,
+                                right: null
+                            };
+                            node.left = s.nodes.length;
+                            s.nodes.push(newNode);
+                            s.step = 'idle';
+                            s.comparisonNode = null;
+                        } else {
+                            s.currentNode = s.nodes[node.left];
+                            s.trail.push(node.left);
+                        }
+                    } else {
+                        if (node.right === null) {
+                            const depth = Math.floor((node.y - 50) / 60);
+                            const offset = Math.max(lastWidth / Math.pow(2, depth + 2), 30);
+
+                            const newNode = {
+                                val: s.currentVal,
+                                x: node.x + offset,
+                                y: node.y + 60,
+                                left: null,
+                                right: null
+                            };
+                            node.right = s.nodes.length;
+                            s.nodes.push(newNode);
+                            s.step = 'idle';
+                            s.comparisonNode = null;
+                        } else {
+                            s.currentNode = s.nodes[node.right];
+                            s.trail.push(node.right);
+                        }
+                    }
+                }
+            } 
+            else if (simDataState.type === 'fcfs') {
+                const s = simDataState;
+                if (s.mode === 'FCFS') {
+                    // Standard FCFS CPU State
+                    const activeP = s.processes.find(p => p.remains > 0);
+                    if (!activeP) {
+                        pauseSim();
+                        return;
+                    }
+
+                    activeP.remains--;
+                    s.ganttChart.push({ id: activeP.id, color: activeP.color });
+                    s.time++;
+                } else {
+                    // Round Robin Execution
+                    const activeP = s.processes[s.activeProcessIdx];
+                    if (activeP && activeP.remains > 0) {
+                        activeP.remains--;
+                        s.ganttChart.push({ id: activeP.id, color: activeP.color });
+                        s.time++;
+                        s.currentQElapsed++;
+
+                        if (activeP.remains === 0 || s.currentQElapsed >= s.timeQuantum) {
+                            s.currentQElapsed = 0;
+                            // Search for next index that still has pending burst time
+                            let found = false;
+                            for (let k = 1; k <= s.processes.length; k++) {
+                                const nextIdx = (s.activeProcessIdx + k) % s.processes.length;
+                                if (s.processes[nextIdx].remains > 0) {
+                                    s.activeProcessIdx = nextIdx;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found) {
+                                pauseSim();
+                            }
+                        }
+                    } else {
+                        // Switch dynamically
+                        let found = false;
+                        for (let k = 1; k <= s.processes.length; k++) {
+                            const nextIdx = (s.activeProcessIdx + k) % s.processes.length;
+                            if (s.processes[nextIdx].remains > 0) {
+                                s.activeProcessIdx = nextIdx;
+                                s.currentQElapsed = 0;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) pauseSim();
+                    }
+                }
+            } 
+            else if (simDataState.type === 'packets') {
+                const s = simDataState;
+                if (Math.random() < 0.35 && s.activePackets.length < 15) {
+                    s.activePackets.push({
+                        currentNode: 0,
+                        nextNode: Math.random() < 0.5 ? 1 : 2,
+                        progress: 0,
+                        color: '#' + Math.floor(Math.random()*16777215).toString(16),
+                        size: Math.floor(Math.random() * 4) + 2
+                    });
+                }
+
+                // Prevent array splicing issues when iterating forward
+                for (let i = s.activePackets.length - 1; i >= 0; i--) {
+                    const packet = s.activePackets[i];
+                    packet.progress += 0.08;
+                    if (packet.progress >= 1.0) {
+                        packet.currentNode = packet.nextNode;
+                        packet.progress = 0;
+                        if (packet.currentNode === 1 || packet.currentNode === 2) {
+                            packet.nextNode = 3;
+                        } else if (packet.currentNode === 3) {
+                            s.activePackets.splice(i, 1);
+                            s.packetsDelivered++;
+                        }
+                    }
+                }
+
+                s.networkCongestion = s.activePackets.length > 8 ? "Heavy Traffic" : "Normal Flow";
+            }
+        }
+
+        // PRIMARY CANVAS DRAW
+        function drawCurrentFrame() {
+            const container = document.getElementById('simulationContainer');
+            if (!container) return;
+
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = "#090d16";
+            ctx.fillRect(0, 0, w, h);
+
+            if (simDataState.type === 'bubble') {
+                const s = simDataState;
+                const size = s.array.length;
+                const barWidth = Math.min((w - 100) / size, 40);
+                const startX = (w - (barWidth * size + (size - 1) * 8)) / 2;
+
+                ctx.font = "10px monospace";
+                ctx.fillStyle = "#64748b";
+                ctx.fillText("BUBBLE SORT TRACE", 20, 25);
+
+                for (let k = 0; k < size; k++) {
+                    const val = s.array[k];
+                    const barHeight = (val / 100) * Math.max(h - 180, 50);
+                    const x = startX + k * (barWidth + 8);
+                    const y = h - 60 - barHeight;
+
+                    // Neon visual states
+                    if (s.isDone) {
+                        ctx.fillStyle = "#10b981";
+                        ctx.shadowColor = "#10b981";
+                        ctx.shadowBlur = 8;
+                    } else if (s.comparing.includes(k)) {
+                        ctx.fillStyle = "#f43f5e";
+                        ctx.shadowColor = "#f43f5e";
+                        ctx.shadowBlur = 10;
+                    } else {
+                        ctx.fillStyle = "#6366f1";
+                        ctx.shadowBlur = 0;
+                    }
+
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, barWidth, barHeight, 6);
+                    ctx.fill();
+                    ctx.shadowBlur = 0; // Clear shadow for text
+
+                    ctx.fillStyle = "#ffffff";
+                    ctx.font = "bold 10px monospace";
+                    ctx.textAlign = "center";
+                    ctx.fillText(val, x + barWidth / 2, y - 8);
+                }
+
+                // Metadata details
+                ctx.font = "11px sans-serif";
+                ctx.fillStyle = "#94a3b8";
+                ctx.textAlign = "left";
+                ctx.fillText(`Comparisons: ${s.comparisonsCount}`, 20, h - 25);
+                ctx.fillText(`Swaps: ${s.swapsCount}`, 160, h - 25);
+            } 
+            else if (simDataState.type === 'bst') {
+                const s = simDataState;
+
+                ctx.font = "10px monospace";
+                ctx.fillStyle = "#64748b";
+                ctx.fillText("BINARY SEARCH TREE INTERACTIVE PATHWAY", 20, 25);
+
+                // Draw Linkage Vectors
+                s.nodes.forEach((node, index) => {
+                    ctx.strokeStyle = "#1e293b";
+                    ctx.lineWidth = 2;
+
+                    // Highlight trail path inside green
+                    if (s.trail.includes(index)) {
+                        ctx.strokeStyle = "#10b981";
+                        ctx.shadowColor = "#10b981";
+                        ctx.shadowBlur = 4;
+                    }
+
+                    if (node.left !== null) {
+                        const leftNode = s.nodes[node.left];
+                        ctx.beginPath();
+                        ctx.moveTo(node.x, node.y + 12);
+                        ctx.lineTo(leftNode.x, leftNode.y - 12);
+                        ctx.stroke();
+                    }
+                    if (node.right !== null) {
+                        const rightNode = s.nodes[node.right];
+                        ctx.beginPath();
+                        ctx.moveTo(node.x, node.y + 12);
+                        ctx.lineTo(rightNode.x, rightNode.y - 12);
+                        ctx.stroke();
+                    }
+                    ctx.shadowBlur = 0;
+                });
+
+                // Draw Node Entities
+                s.nodes.forEach((node, index) => {
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, 16, 0, Math.PI * 2);
+
+                    if (s.comparisonNode === node) {
+                        ctx.fillStyle = "#f43f5e";
+                        ctx.strokeStyle = "#fda4af";
+                        ctx.shadowColor = "#f43f5e";
+                        ctx.shadowBlur = 10;
+                    } else if (s.trail.includes(index)) {
+                        ctx.fillStyle = "#065f46";
+                        ctx.strokeStyle = "#34d399";
+                    } else {
+                        ctx.fillStyle = "#0f172a";
+                        ctx.strokeStyle = "#6366f1";
+                    }
+
+                    ctx.lineWidth = 2;
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+
+                    ctx.fillStyle = "#ffffff";
+                    ctx.font = "bold 10px monospace";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(node.val, node.x, node.y);
+                });
+
+                // Dynamic values awaiting queue insertion panel
+                ctx.textBaseline = "alphabetic";
+                ctx.textAlign = "left";
+                ctx.fillStyle = "#94a3b8";
+                ctx.font = "11px sans-serif";
+                ctx.fillText(`Next values: [ ${s.pendingVals.join(', ')} ]`, 20, h - 25);
+                if (s.currentVal) {
+                    ctx.fillStyle = "#6366f1";
+                    ctx.fillText(`Active Value: ${s.currentVal} (${s.step})`, 20, h - 45);
+                }
+            } 
+            else if (simDataState.type === 'adder') {
+                const s = simDataState;
+                ctx.font = "10px monospace";
+                ctx.fillStyle = "#64748b";
+                ctx.fillText("DIGITAL LOGIC PATHWAYS (CLICK GATES TO TOGGLE)", 20, 25);
+
+                const boxX = w / 2 - 20;
+
+                // Draw Circuit Switches and connecting wires
+                s.interactiveElements.forEach(elem => {
+                    // Connection line
+                    ctx.strokeStyle = elem.active ? "#10b981" : "#1e293b";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(elem.x + 16, elem.y);
+                    ctx.lineTo(boxX, elem.y);
+                    ctx.stroke();
+
+                    // Switch circle
+                    ctx.beginPath();
+                    ctx.arc(elem.x, elem.y, 16, 0, Math.PI * 2);
+                    ctx.fillStyle = elem.active ? "#10b981" : "#1e293b";
+                    ctx.strokeStyle = elem.active ? "#34d399" : "#475569";
+                    ctx.lineWidth = 2;
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillStyle = "#ffffff";
+                    ctx.font = "bold 11px sans-serif";
+                    ctx.textAlign = "left";
+                    ctx.fillText(`${elem.label}: ${elem.active ? '1 (HIGH)' : '0 (LOW)'}`, elem.x + 28, elem.y + 4);
+                });
+
+                // Circuit Block representation
+                ctx.fillStyle = "#1e293b";
+                ctx.strokeStyle = "#6366f1";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(boxX, 80, 160, 200, 12);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 13px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("FULL ADDER CHIP", boxX + 80, 115);
+
+                // Internal wire logic schematic representation
+                ctx.font = "11px monospace";
+                ctx.fillStyle = "#94a3b8";
+                ctx.fillText(`Input A: ${s.inA}`, boxX + 80, 155);
+                ctx.fillText(`Input B: ${s.inB}`, boxX + 80, 180);
+                ctx.fillText(`Carry In: ${s.inCin}`, boxX + 80, 205);
+
+                // Outputs representation
+                const outX = boxX + 230;
+                ctx.fillStyle = s.sum ? "#10b981" : "#64748b";
+                ctx.font = "bold 13px monospace";
+                ctx.textAlign = "left";
+                ctx.fillText(`SUM output: ${s.sum}`, outX, 140);
+
+                ctx.fillStyle = s.cout ? "#10b981" : "#64748b";
+                ctx.fillText(`COUT (Carry): ${s.cout}`, outX, 200);
+
+                // Visual flow feedback lines
+                ctx.strokeStyle = s.sum ? "#10b981" : "#1e293b";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(boxX + 160, 136);
+                ctx.lineTo(outX - 10, 136);
+                ctx.stroke();
+
+                ctx.strokeStyle = s.cout ? "#10b981" : "#1e293b";
+                ctx.beginPath();
+                ctx.moveTo(boxX + 160, 196);
+                ctx.lineTo(outX - 10, 196);
+                ctx.stroke();
+            } 
+            else if (simDataState.type === 'fcfs') {
+                const s = simDataState;
+                ctx.font = "10px monospace";
+                ctx.fillStyle = "#64748b";
+                ctx.fillText(`OS PROCESS SCHEDULER [Mode: ${s.mode}]`, 20, 25);
+
+                const startY = 70;
+                ctx.textAlign = "left";
+                ctx.font = "11px sans-serif";
+                ctx.fillStyle = "#94a3b8";
+                ctx.fillText("PID Name", 40, startY);
+                ctx.fillText("Remaining Burst Size", 160, startY);
+
+                s.processes.forEach((proc, idx) => {
+                    const rowY = startY + 30 + (idx * 34);
+                    proc.y = rowY - 18; // Store boundary bounds for click
+                    proc.x = 40;
+
+                    // Hover background block
+                    ctx.fillStyle = "#111827";
+                    ctx.beginPath();
+                    ctx.roundRect(30, rowY - 20, w - 60, 28, 6);
+                    ctx.fill();
+
+                    ctx.fillStyle = proc.color;
+                    ctx.beginPath();
+                    ctx.arc(46, rowY - 6, 6, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = "#ffffff";
+                    ctx.font = "bold 11px monospace";
+                    ctx.fillText(proc.id, 65, rowY - 2);
+
+                    // Dynamic progress meters
+                    const barW = 120;
+                    ctx.fillStyle = "#1f2937";
+                    ctx.fillRect(160, rowY - 11, barW, 10);
+
+                    const compW = proc.burst > 0 ? ((proc.burst - proc.remains) / proc.burst) * barW : 0;
+                    ctx.fillStyle = proc.color;
+                    ctx.fillRect(160, rowY - 11, compW, 10);
+
+                    ctx.fillStyle = "#94a3b8";
+                    ctx.font = "10px sans-serif";
+                    ctx.fillText(`${proc.remains}ms remains (of ${proc.burst}ms)`, 295, rowY - 2);
+                });
+
+                // Dynamic Gantt execution history layout with sliding window
+                ctx.fillStyle = "#111827";
+                ctx.beginPath();
+                ctx.roundRect(30, h - 85, w - 60, 32, 6);
+                ctx.fill();
+
+                const tickW = Math.max((w - 70) / 25, 12);
+                const maxVisibleTicks = Math.floor((w - 70) / tickW);
+                const visibleGantt = s.ganttChart.slice(-maxVisibleTicks);
+
+                visibleGantt.forEach((tick, idx) => {
+                    if (35 + (idx * tickW) < w - 60) {
+                        ctx.fillStyle = tick.color;
+                        ctx.fillRect(35 + (idx * tickW), h - 81, tickW - 2, 24);
+                        ctx.fillStyle = "#ffffff";
+                        ctx.font = "9px monospace";
+                        ctx.textAlign = "center";
+                        ctx.fillText(tick.id, 35 + (idx * tickW) + tickW/2, h - 66);
+                    }
+                });
+
+                ctx.textAlign = "left";
+                ctx.fillStyle = "#94a3b8";
+                ctx.font = "11px sans-serif";
+                ctx.fillText(`Elapsed: ${s.time}ms`, 30, h - 35);
+            } 
+            else if (simDataState.type === 'packets') {
+                const s = simDataState;
+                ctx.font = "10px monospace";
+                ctx.fillStyle = "#64748b";
+                ctx.fillText("COMPUTER NETWORKING packet topology tracking", 20, 25);
+
+                // Draw line links
+                s.connections.forEach(conn => {
+                    const fNode = s.nodes[conn.from];
+                    const tNode = s.nodes[conn.to];
+                    ctx.strokeStyle = "#1e293b";
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(fNode.x, fNode.y);
+                    ctx.lineTo(tNode.x, tNode.y);
+                    ctx.stroke();
+                });
+
+                // Trace dynamic packages movement
+                s.activePackets.forEach(p => {
+                    const fNode = s.nodes[p.currentNode];
+                    const tNode = s.nodes[p.nextNode];
+                    if (fNode && tNode) {
+                        const px = fNode.x + (tNode.x - fNode.x) * p.progress;
+                        const py = fNode.y + (tNode.y - fNode.y) * p.progress;
+
+                        ctx.fillStyle = "#10b981";
+                        ctx.shadowColor = "#10b981";
+                        ctx.shadowBlur = 6;
+                        ctx.beginPath();
+                        ctx.arc(px, py, p.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.shadowBlur = 0;
+                    }
+                });
+
+                // Draw static routers nodes
+                s.nodes.forEach(node => {
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, 22, 0, Math.PI * 2);
+                    ctx.fillStyle = node.type === 'source' ? '#065f46' : (node.type === 'dest' ? '#991b1b' : '#1e1b4b');
+                    ctx.strokeStyle = '#6366f1';
+                    ctx.lineWidth = 2;
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillStyle = "#ffffff";
+                    ctx.font = "bold 9px monospace";
+                    ctx.textAlign = "center";
+                    ctx.fillText(node.id.split(' ')[0], node.x, node.y + 4);
+                });
+
+                // Traffic logs
+                ctx.textAlign = "left";
+                ctx.font = "11px sans-serif";
+                ctx.fillStyle = "#94a3b8";
+                ctx.fillText(`Delivered packets: ${s.packetsDelivered}`, 20, h - 25);
+                ctx.fillText(`Status: ${s.networkCongestion}`, 180, h - 25);
+            }
+        }
+    </script>
+</body>
+</html>
